@@ -1,15 +1,23 @@
 """
 Tests for Interactive Data Dashboard.
-Test count: 16
+Test count: 14
 """
+import importlib.util
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', '..', 'src'))
+# Direct import via importlib to avoid pytest path issues
+workspace_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_spec = importlib.util.spec_from_file_location(
+    "dashboard.api",
+    os.path.join(workspace_root, "dashboard", "api.py"),
+)
+assert _spec is not None, "Cannot find dashboard/api.py"
+dashboard_api = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(dashboard_api)
+app = dashboard_api.app
 
-from dashboard.api import app
 from fastapi.testclient import TestClient
-
 
 client = TestClient(app)
 
@@ -43,6 +51,17 @@ class TestMetrics:
         assert "kpis" in data
         assert len(data["kpis"]) >= 1
 
+    def test_get_timeseries(self):
+        response = client.get("/api/v1/dashboard/timeseries?hours=1")
+        assert response.status_code == 200
+        data = response.json()
+        assert "data" in data
+        assert "count" in data
+
+    def test_get_timeseries_with_vertical(self):
+        response = client.get("/api/v1/dashboard/timeseries?hours=1&vertical=healthcare")
+        assert response.status_code == 200
+
 
 # ──────────────────── Export Tests ────────────────────────────────────
 
@@ -61,6 +80,39 @@ class TestExport:
     def test_export_csv_with_filters(self):
         response = client.get("/api/v1/dashboard/export/csv?vertical=finance")
         assert response.status_code == 200
+
+    def test_export_json_with_filters(self):
+        response = client.get("/api/v1/dashboard/export/json?agent=agent_1")
+        assert response.status_code == 200
+
+
+# ──────────────────── Dashboard Page Tests ─────────────────────────────
+
+
+class TestDashboardPage:
+    def test_dashboard_home(self):
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "Interactive Data Dashboard" in response.text
+
+    def test_dashboard_page(self):
+        response = client.get("/dashboard")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+
+# ──────────────────── WebSocket Tests ─────────────────────────────────
+
+
+class TestWebSocket:
+    def test_websocket_connection(self):
+        with client.websocket_connect("/ws/dashboard") as ws:
+            import json
+            data = ws.receive_json()
+            assert data["type"] == "metrics_update"
+            assert "data" in data
+            assert "timestamp" in data
 
 
 # ──────────────────── Health Tests ────────────────────────────────────

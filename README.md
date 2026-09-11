@@ -1,160 +1,103 @@
-# Interactive Data Dashboard
+# Interactive Data Dashboard — Real-Time Charts, Filters & Export
 
-Real-time data visualization dashboard with charts, filters, and export capabilities.
-Built with React, TypeScript, and Recharts for displaying AI system metrics and analytics.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Components](#components)
-- [Data Sources](#data-sources)
-- [API Reference](#api-reference)
-- [Setup](#setup)
-
-## Overview
-
-A responsive, real-time dashboard for monitoring AI system performance, knowledge graph
-metrics, and business KPIs. Supports interactive filtering, drill-down, and data export.
+A full-stack interactive dashboard built with FastAPI, Chart.js, and WebSocket for real-time data visualization.
 
 ## Features
 
-- **Real-time Charts** — Line, bar, area, pie, and scatter charts with live updates
-- **Interactive Filters** — Date range, category, agent, vertical, and status filters
-- **Data Export** — CSV, JSON, PNG, and PDF export
-- **Responsive Design** — Desktop, tablet, and mobile layouts
-- **Dark Mode** — Full dark mode support
-- **Drill-down** — Click any data point to see details
-- **Custom Dashboards** — Save and share custom dashboard layouts
+- **Real-time Charts** — Bar, line, area charts powered by Chart.js with live WebSocket updates (5s interval)
+- **Interactive Filters** — Time range, agent, vertical, and date range filters
+- **Data Export** — CSV, JSON, PNG (chart image) export with active filters applied
+- **KPI Summary Cards** — Live KPI metrics with change indicators
+- **Responsive Design** — Dark theme, mobile/tablet/desktop layouts
+- **Live Connection Status** — WebSocket connection indicator with auto-reconnect
+- **Data Table** — Recent metrics table with sortable columns
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Interactive Data Dashboard                         │
-│                                                                      │
-│  ┌─────────────────────────────────────────────────────────────┐    │
-│  │  Dashboard Container                                         │    │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌──────────────────┐   │    │
-│  │  │  Chart      │  │  Filter      │  │  KPI             │   │    │
-│  │  │  Panel      │  │  Panel       │  │  Cards           │   │    │
-│  │  └─────────────┘  └──────────────┘  └──────────────────┘   │    │
-│  └─────────────────────────────────────────────────────────────┘    │
-│                              │                                       │
-│  ┌───────────────────────────▼─────────────────────────────────┐    │
-│  │  Data Layer                                                  │    │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌──────────────────┐   │    │
-│  │  │  WebSocket  │  │  REST API    │  │  Local           │   │    │
-│  │  │  Client     │  │  Client      │  │  Storage         │   │    │
-│  │  └─────────────┘  └──────────────┘  └──────────────────┘   │    │
-│  └─────────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                  Interactive Data Dashboard                    │
+│                                                               │
+│  ┌───────────────────────────────────────────────────────┐   │
+│  │  Frontend (Chart.js + Vanilla JS)                      │   │
+│  │  - KPI cards, filter panel, chart grid, data table     │   │
+│  │  - WebSocket client for real-time updates              │   │
+│  │  - CSV/JSON/PNG export buttons                         │   │
+│  └───────────────────────────────────────────────────────┘   │
+│                            │                                   │
+│                            ▼                                   │
+│  ┌───────────────────────────────────────────────────────┐   │
+│  │  Backend (FastAPI)                                     │   │
+│  │  - REST API: /api/v1/dashboard/*                      │   │
+│  │  - WebSocket: /ws/dashboard                           │   │
+│  │  - Export: CSV, JSON with filter passthrough          │   │
+│  │  - Health: /health                                     │   │
+│  └───────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Components
-
-### ChartPanel
-
-```tsx
-interface ChartPanelProps {
-  title: string;
-  type: 'line' | 'bar' | 'area' | 'pie' | 'scatter';
-  data: DataPoint[];
-  xKey: string;
-  yKey: string;
-  colors?: string[];
-  showLegend?: boolean;
-  showGrid?: boolean;
-  animate?: boolean;
-  onDataPointClick?: (point: DataPoint) => void;
-}
-```
-
-### FilterPanel
-
-```tsx
-interface FilterPanelProps {
-  filters: FilterConfig[];
-  onChange: (filters: Record<string, FilterValue>) => void;
-  onReset: () => void;
-}
-
-interface FilterConfig {
-  key: string;
-  label: string;
-  type: 'date-range' | 'select' | 'multi-select' | 'search' | 'toggle';
-  options?: { label: string; value: string }[];
-  defaultValue?: FilterValue;
-}
-```
-
-### KPICard
-
-```tsx
-interface KPICardProps {
-  title: string;
-  value: number | string;
-  change?: number;
-  changeLabel?: string;
-  icon?: React.ReactNode;
-  color?: string;
-}
-```
-
-### ExportButton
-
-```tsx
-interface ExportButtonProps {
-  data: DataPoint[];
-  filename: string;
-  formats: ('csv' | 'json' | 'png' | 'pdf')[];
-  onExport?: (format: string) => void;
-}
-```
-
-## Data Sources
-
-| Source | Type | Endpoint | Refresh |
-|--------|------|----------|---------|
-| Agent Metrics | WebSocket | /ws/agents | Real-time |
-| Task Results | REST | /api/v1/tasks | 30s |
-| Safety Events | REST | /api/v1/safety | 60s |
-| Resource Usage | WebSocket | /ws/resources | 5s |
-| KG Statistics | REST | /api/v1/graph/stats | 300s |
-
-## API Reference
-
-### GET /api/v1/dashboard/metrics
-
-**Query Parameters:**
-| Param | Type | Default | Description |
-|-------|------|---------|-------------|
-| from | ISO date | 24h ago | Start date |
-| to | ISO date | now | End date |
-| agent | string | all | Filter by agent |
-| vertical | string | all | Filter by vertical |
-| granularity | string | 1m | Data granularity |
-
-**Response:**
-```json
-{
-  "metrics": [
-    { "timestamp": "2024-01-15T10:00:00Z", "tasks_completed": 42, "avg_latency_ms": 150 },
-    { "timestamp": "2024-01-15T10:01:00Z", "tasks_completed": 45, "avg_latency_ms": 145 }
-  ],
-  "total": 1440,
-  "granularity": "1m"
-}
-```
-
-## Setup
+## Quick Start
 
 ```bash
-npm install
-npm run dev
-# Open http://localhost:3000/dashboard
+# Install dependencies
+pip install fastapi uvicorn python-multipart
+
+# Run the server (serves dashboard at http://localhost:8000)
+uvicorn dashboard.api:app --reload
+
+# Run tests (14 tests)
+python -m pytest tests/ -v --rootdir=.
 ```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Interactive dashboard (HTML) |
+| GET | `/dashboard` | Interactive dashboard (HTML) |
+| GET | `/api/v1/dashboard/metrics` | Metrics data with filters |
+| GET | `/api/v1/dashboard/timeseries` | Time series for charts |
+| GET | `/api/v1/dashboard/kpis` | KPI summary cards |
+| GET | `/api/v1/dashboard/export/csv` | Export filtered data as CSV |
+| GET | `/api/v1/dashboard/export/json` | Export filtered data as JSON |
+| WS | `/ws/dashboard` | Real-time metrics stream |
+| GET | `/health` | Health check |
+
+## Query Parameters
+
+**`/api/v1/dashboard/metrics`**:
+- `from_time` — ISO datetime (default: 24h ago)
+- `to_time` — ISO datetime (default: now)
+- `agent` — Filter by agent ID
+- `vertical` — Filter by vertical (healthcare, legal, finance, etc.)
+- `granularity` — Data interval: `1m` or `5m` (default: `1m`)
+
+**`/api/v1/dashboard/timeseries`**:
+- `hours` — Hours of data (1-168, default: 24)
+- `vertical` — Filter by vertical
+
+**Export endpoints** inherit the same filter parameters as `/metrics`.
+
+## File Structure
+
+```
+t_2be3d0d3/
+├── dashboard/
+│   └── api.py          # FastAPI backend + HTML/JS frontend
+├── tests/
+│   ├── conftest.py     # Pytest sys.path fix
+│   └── test_dashboard.py  # 14 tests
+├── .github/
+│   └── workflows/      # CI/CD config
+└── README.md
+```
+
+## Tech Stack
+
+- **Backend**: FastAPI (async), Python 3.11+
+- **Frontend**: Chart.js 4.4, vanilla JS (no build step)
+- **Real-time**: WebSocket with auto-reconnect
+- **Testing**: pytest + httpx (FastAPI TestClient)
 
 ## License
 
